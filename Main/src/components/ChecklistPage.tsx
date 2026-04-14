@@ -25,7 +25,6 @@ export function ChecklistPage({
   type, items, selectedIds, onToggle, onNext, onPrev, stepLabel, stepDescription,
 }: ChecklistPageProps) {
   const [search, setSearch] = useState('')
-  const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
@@ -41,27 +40,36 @@ export function ChecklistPage({
   const isLiked = type === 'liked'
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--s-lg)' }}>
+    <div className="container" style={{ paddingTop: 'var(--s-md)', paddingBottom: 100 }}>
       {/* Header */}
-      <div className="animate-fade-in-up" style={{ marginBottom: 'var(--s-lg)' }}>
+      <div className="animate-fade-in-up" style={{ marginBottom: 'var(--s-md)' }}>
         <h2 style={{
           fontFamily: 'var(--f-display)',
           color: 'var(--c-text)',
-          marginBottom: 'var(--s-xs)',
+          fontSize: '1.3rem',
+          marginBottom: 2,
         }}>
           {stepLabel}
         </h2>
         <p style={{
-          fontSize: '0.85rem',
+          fontSize: '0.8rem',
           color: 'var(--c-text-secondary)',
-          lineHeight: 1.6,
+          lineHeight: 1.5,
         }}>
           {stepDescription || DESCRIPTIONS[type]}
         </p>
       </div>
 
-      {/* Search */}
-      <div className="animate-fade-in-up stagger-1" style={{ marginBottom: 'var(--s-lg)' }}>
+      {/* Search — sticky */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        background: 'var(--c-bg)',
+        paddingTop: 'var(--s-xs)',
+        paddingBottom: 'var(--s-sm)',
+        marginBottom: 'var(--s-sm)',
+      }}>
         <input
           type="text"
           placeholder="搜索..."
@@ -69,15 +77,16 @@ export function ChecklistPage({
           onChange={e => setSearch(e.target.value)}
           style={{
             width: '100%',
-            padding: 'var(--s-sm) var(--s-md)',
+            padding: '8px var(--s-md)',
             border: '1px solid var(--c-border)',
             borderRadius: 'var(--r-md)',
             background: 'var(--c-bg-elevated)',
             fontFamily: 'var(--f-body)',
-            fontSize: '0.9rem',
+            fontSize: '0.85rem',
             color: 'var(--c-text)',
             outline: 'none',
             transition: 'border-color var(--t-fast)',
+            boxSizing: 'border-box',
           }}
           onFocus={e => e.currentTarget.style.borderColor = 'var(--c-accent)'}
           onBlur={e => e.currentTarget.style.borderColor = 'var(--c-border)'}
@@ -102,8 +111,6 @@ export function ChecklistPage({
           items={filtered as SkilledItem[]}
           selectedIds={selectedIds}
           onToggle={onToggle}
-          expandedId={expandedId}
-          onExpand={setExpandedId}
         />
       )}
 
@@ -161,7 +168,11 @@ function ImportantList({ items, selectedIds, onToggle }: {
   items: ImportantItem[]; selectedIds: Set<number>; onToggle: (id: number) => void
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-sm)' }}>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: 'var(--s-xs)',
+    }}>
       {items.map((item, index) => {
         const selected = selectedIds.has(item.id)
         return (
@@ -170,32 +181,43 @@ function ImportantList({ items, selectedIds, onToggle }: {
             onClick={() => onToggle(item.id)}
             className="animate-fade-in-up"
             style={{
-              ...cardStyle(selected),
-              animationDelay: `${Math.min(index * 20, 300)}ms`,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
+              padding: '10px 12px',
+              borderRadius: 'var(--r-md)',
+              border: selected
+                ? '1.5px solid var(--c-accent)'
+                : '1.5px solid var(--c-border-light)',
+              background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
+              cursor: 'pointer',
+              transition: 'all var(--t-fast) var(--ease-out)',
+              textAlign: 'left',
+              animationDelay: `${Math.min(index * 15, 300)}ms`,
             }}
           >
-            <div style={checkboxStyle(selected)}>
-              {selected && <span style={{ fontSize: '0.7rem' }}>✓</span>}
+            <div style={{ ...checkboxStyle(selected), marginTop: 2 }}>
+              {selected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
             </div>
-            <div style={{ flex: 1, textAlign: 'left' }}>
-              <span style={{
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
                 fontFamily: 'var(--f-display)',
                 fontWeight: 600,
-                fontSize: '0.95rem',
+                fontSize: '0.9rem',
                 color: selected ? 'var(--c-accent)' : 'var(--c-text)',
                 transition: 'color var(--t-fast)',
               }}>
                 {item.keyword}
-              </span>
-              <span style={{
-                marginLeft: 'var(--s-sm)',
-                fontSize: '0.8rem',
+              </div>
+              <div style={{
+                fontSize: '0.72rem',
                 color: 'var(--c-text-tertiary)',
+                marginTop: 1,
+                lineHeight: 1.4,
               }}>
                 {item.desc}
-              </span>
+              </div>
             </div>
-            <span style={idBadgeStyle}>{item.id}</span>
           </button>
         )
       })}
@@ -203,86 +225,74 @@ function ImportantList({ items, selectedIds, onToggle }: {
   )
 }
 
-function SkilledList({ items, selectedIds, onToggle, expandedId, onExpand }: {
+function SkilledList({ items, selectedIds, onToggle }: {
   items: SkilledItem[]; selectedIds: Set<number>; onToggle: (id: number) => void
-  expandedId: number | null; onExpand: (id: number | null) => void
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-sm)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {items.map((item, index) => {
         const selected = selectedIds.has(item.id)
-        const expanded = expandedId === item.id
         return (
-          <div
+          <button
             key={item.id}
+            onClick={() => onToggle(item.id)}
             className="animate-fade-in-up"
             style={{
-              ...cardStyle(selected),
-              flexDirection: 'column',
-              cursor: 'default',
-              animationDelay: `${Math.min(index * 20, 300)}ms`,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              padding: '10px 14px',
+              borderRadius: 'var(--r-md)',
+              border: selected
+                ? '1.5px solid var(--c-accent)'
+                : '1.5px solid var(--c-border-light)',
+              background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
+              cursor: 'pointer',
+              transition: 'all var(--t-fast) var(--ease-out)',
+              textAlign: 'left',
+              animationDelay: `${Math.min(index * 15, 300)}ms`,
             }}
           >
-            <button
-              onClick={() => onToggle(item.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--s-md)',
-                width: '100%',
-                padding: 0,
-                cursor: 'pointer',
-              }}
-            >
-              <div style={checkboxStyle(selected)}>
-                {selected && <span style={{ fontSize: '0.7rem' }}>✓</span>}
-              </div>
-              <span style={{
-                flex: 1,
-                textAlign: 'left',
+            <div style={{ ...checkboxStyle(selected), marginTop: 3, flexShrink: 0 }}>
+              {selected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* 才能 — 标题 */}
+              <div style={{
                 fontFamily: 'var(--f-display)',
                 fontWeight: 600,
-                fontSize: '0.95rem',
+                fontSize: '0.9rem',
                 color: selected ? 'var(--c-accent)' : 'var(--c-text)',
                 transition: 'color var(--t-fast)',
+                marginBottom: 4,
               }}>
                 {item.talent}
-              </span>
-              <span style={idBadgeStyle}>{item.id}</span>
-            </button>
-            <button
-              onClick={() => onExpand(expanded ? null : item.id)}
-              style={{
-                marginLeft: 36,
-                fontSize: '0.75rem',
-                color: 'var(--c-text-tertiary)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: '2px 0',
-              }}
-            >
-              {expanded ? '收起详情 ▲' : '查看详情 ▼'}
-            </button>
-            {expanded && (
-              <div style={{
-                marginLeft: 36,
-                marginTop: 'var(--s-xs)',
-                padding: 'var(--s-sm) var(--s-md)',
-                background: 'var(--c-bg)',
-                borderRadius: 'var(--r-sm)',
-                fontSize: '0.8rem',
-                lineHeight: 1.7,
-                animation: 'fadeIn var(--t-fast) ease',
-              }}>
-                <div style={{ color: 'var(--c-success)' }}>
-                  <strong>长处：</strong>{item.strength}
-                </div>
-                <div style={{ color: 'var(--c-error)', marginTop: 2 }}>
-                  <strong>短处：</strong>{item.weakness}
-                </div>
               </div>
-            )}
-          </div>
+              {/* 长处 */}
+              <div style={{
+                fontSize: '0.75rem',
+                color: '#5a8a5a',
+                lineHeight: 1.4,
+                display: 'flex',
+                gap: 4,
+              }}>
+                <span style={{ flexShrink: 0, opacity: 0.7 }}>↑</span>
+                <span>{item.strength}</span>
+              </div>
+              {/* 短处 */}
+              <div style={{
+                fontSize: '0.75rem',
+                color: '#9a6a3a',
+                lineHeight: 1.4,
+                marginTop: 2,
+                display: 'flex',
+                gap: 4,
+              }}>
+                <span style={{ flexShrink: 0, opacity: 0.7 }}>↓</span>
+                <span>{item.weakness}</span>
+              </div>
+            </div>
+          </button>
         )
       })}
     </div>
@@ -344,23 +354,6 @@ function LikedGrid({ items, selectedIds, onToggle }: {
 
 /* ===== Style helpers ===== */
 
-function cardStyle(selected: boolean): CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'var(--s-md)',
-    padding: 'var(--s-md)',
-    borderRadius: 'var(--r-md)',
-    border: selected
-      ? '1.5px solid var(--c-accent)'
-      : '1.5px solid var(--c-border-light)',
-    background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
-    cursor: 'pointer',
-    transition: 'all var(--t-fast) var(--ease-out)',
-    boxShadow: selected ? 'none' : 'var(--shadow-sm)',
-  }
-}
-
 function checkboxStyle(checked: boolean): CSSProperties {
   return {
     width: 20,
@@ -406,10 +399,3 @@ function navBtnStyle(variant: 'primary' | 'secondary'): CSSProperties {
   }
 }
 
-const idBadgeStyle: CSSProperties = {
-  fontSize: '0.7rem',
-  color: 'var(--c-text-tertiary)',
-  fontFamily: 'var(--f-body)',
-  minWidth: 20,
-  textAlign: 'right',
-}

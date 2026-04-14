@@ -19,7 +19,7 @@ export function StepIndicator({ currentStep, onStepClick, counts }: StepIndicato
       alignItems: 'center',
       justifyContent: 'center',
       gap: 0,
-      padding: 'var(--s-lg) 0',
+      padding: 'var(--s-md) 0 var(--s-sm)',
     }}>
       {STEPS.map((step, i) => {
         const isActive = currentStep === i
