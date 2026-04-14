@@ -224,7 +224,7 @@ function AIChatOverlay({ prompt, onClose }: { prompt: string; onClose: () => voi
   const [provider, setProvider] = useLocalStorage<AIProvider>('lp-ai-provider', 'openai')
   const [apiKey, setApiKey] = useLocalStorage('lp-api-key-' + provider, '')
   const [showKeyInput, setShowKeyInput] = useState(false)
-  const { messages, isStreaming, error, sendMessage, clearMessages } = useAIChat(provider, apiKey)
+  const { messages, isStreaming, error, sendMessage, clearMessages } = useAIChat(provider, apiKey, prompt)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const hasSentRef = useRef(false)
 
@@ -232,7 +232,7 @@ function AIChatOverlay({ prompt, onClose }: { prompt: string; onClose: () => voi
   useEffect(() => {
     if (apiKey && !hasSentRef.current && messages.length === 0) {
       hasSentRef.current = true
-      sendMessage(prompt)
+      sendMessage('请根据以上我的选择，按照步骤帮我深度分析，找到我真正想做的事。')
     }
   }, [apiKey, messages.length, prompt, sendMessage])
 

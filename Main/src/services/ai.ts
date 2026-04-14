@@ -22,8 +22,8 @@ const OPENAI_COMPATIBLE = (url: string, model: string): ProviderConfig => ({
     model,
     messages,
     stream: true,
-    temperature: 0.8,
-    max_tokens: 4096,
+    temperature: 0.7,
+    max_tokens: 16384,
   }),
   parseStream: (line) => {
     if (!line.startsWith('data: ')) return null
@@ -61,8 +61,9 @@ const PROVIDERS: Record<AIProvider, ProviderConfig> = {
       const nonSystem = messages.filter(m => m.role !== 'system')
       return JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
+        max_tokens: 16384,
         stream: true,
+        temperature: 0.7,
         ...(systemMsg ? { system: systemMsg.content } : {}),
         messages: nonSystem.map(m => ({ role: m.role, content: m.content })),
       })
