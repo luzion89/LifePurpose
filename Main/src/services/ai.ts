@@ -12,6 +12,8 @@ interface ProviderConfig {
   parseStream: (line: string) => string | null
 }
 
+const DEFAULT_MAX_TOKENS = 8192
+
 const OPENAI_COMPATIBLE = (url: string, model: string): ProviderConfig => ({
   url,
   headers: (apiKey) => ({
@@ -23,7 +25,7 @@ const OPENAI_COMPATIBLE = (url: string, model: string): ProviderConfig => ({
     messages,
     stream: true,
     temperature: 0.7,
-    max_tokens: 16384,
+    max_tokens: DEFAULT_MAX_TOKENS,
   }),
   parseStream: (line) => {
     if (!line.startsWith('data: ')) return null
@@ -61,7 +63,7 @@ const PROVIDERS: Record<AIProvider, ProviderConfig> = {
       const nonSystem = messages.filter(m => m.role !== 'system')
       return JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 16384,
+        max_tokens: DEFAULT_MAX_TOKENS,
         stream: true,
         temperature: 0.7,
         ...(systemMsg ? { system: systemMsg.content } : {}),
