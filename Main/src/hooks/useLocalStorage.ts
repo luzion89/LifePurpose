@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
+  const initialValueRef = useRef(initialValue)
+
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
       const item = window.localStorage.getItem(key)
-      return item ? JSON.parse(item) as T : initialValue
+      return item ? JSON.parse(item) as T : initialValueRef.current
     } catch {
-      return initialValue
+      return initialValueRef.current
     }
   })
 
@@ -22,12 +24,21 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
     })
   }, [key])
 
+  useEffect(() => {
+    try {
+      const item = window.localStorage.getItem(key)
+      setStoredValue(item ? JSON.parse(item) as T : initialValueRef.current)
+    } catch {
+      setStoredValue(initialValueRef.current)
+    }
+  }, [key])
+
   // Sync across tabs
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === key && e.newValue) {
+      if (e.key === key) {
         try {
-          setStoredValue(JSON.parse(e.newValue) as T)
+          setStoredValue(e.newValue ? JSON.parse(e.newValue) as T : initialValueRef.current)
         } catch { /* ignore */ }
       }
     }

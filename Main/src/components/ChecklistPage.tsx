@@ -1,47 +1,96 @@
 import { useState, useMemo, type CSSProperties } from 'react'
 import type { ImportantItem, SkilledItem, LikedItem } from '../data/lists'
+import type { AppLanguage } from '../i18n'
+import { UI_TEXT } from '../i18n'
+import { isCustomOptionId } from '../utils/customOptions'
 
 type ListType = 'important' | 'skilled' | 'liked'
-type AnyItem = ImportantItem | SkilledItem | LikedItem
 
-interface ChecklistPageProps {
-  type: ListType
-  items: AnyItem[]
+interface ChecklistPageBaseProps {
+  language: AppLanguage
   selectedIds: Set<number>
   onToggle: (id: number) => void
   onNext: () => void
   onPrev?: () => void
-  stepLabel: string
-  stepDescription: string
 }
 
-const DESCRIPTIONS: Record<ListType, string> = {
-  important: '选出对你而言"重要的价值观"——它们定义了你认为人生中最重要的是什么。',
-  skilled: '选出你"擅长的才能"——那些你天生就做得好、做起来不费力的事。',
-  liked: '选出你"感兴趣的领域"——那些能让你发自内心感到快乐的方向。',
+interface ImportantChecklistPageProps extends ChecklistPageBaseProps {
+  type: 'important'
+  items: ImportantItem[]
+  onCreateCustomOption: (item: Omit<ImportantItem, 'id'>) => number
 }
 
-export function ChecklistPage({
-  type, items, selectedIds, onToggle, onNext, onPrev, stepLabel, stepDescription,
-}: ChecklistPageProps) {
+interface SkilledChecklistPageProps extends ChecklistPageBaseProps {
+  type: 'skilled'
+  items: SkilledItem[]
+  onCreateCustomOption: (item: Omit<SkilledItem, 'id'>) => number
+}
+
+interface LikedChecklistPageProps extends ChecklistPageBaseProps {
+  type: 'liked'
+  items: LikedItem[]
+  onCreateCustomOption: (item: Omit<LikedItem, 'id'>) => number
+}
+
+type ChecklistPageProps = ImportantChecklistPageProps | SkilledChecklistPageProps | LikedChecklistPageProps
+
+export function ChecklistPage(props: ChecklistPageProps) {
+  const { language, type, items, selectedIds, onToggle, onNext, onPrev } = props
   const [search, setSearch] = useState('')
+  const [showCustomForm, setShowCustomForm] = useState(false)
+  const [customFields, setCustomFields] = useState<Record<string, string>>({})
+
+  const copy = UI_TEXT[language]
+  const stepCopy = copy.steps[type]
 
   const filtered = useMemo(() => {
     if (!search.trim()) return items
-    const q = search.trim().toLowerCase()
+    const query = search.trim().toLowerCase()
+
     return items.filter(item => {
-      if ('keyword' in item) return item.keyword.includes(q) || item.desc.includes(q)
-      if ('talent' in item) return item.talent.includes(q) || item.strength.includes(q)
-      if ('name' in item) return item.name.includes(q)
+      if ('keyword' in item) return item.keyword.toLowerCase().includes(query) || item.desc.toLowerCase().includes(query)
+      if ('talent' in item) return item.talent.toLowerCase().includes(query) || item.strength.toLowerCase().includes(query) || item.weakness.toLowerCase().includes(query)
+      if ('name' in item) return item.name.toLowerCase().includes(query)
       return false
     })
   }, [items, search])
 
   const isLiked = type === 'liked'
+  const canSubmitCustom = getRequiredFields(type).every(field => customFields[field]?.trim())
+
+  const handleCustomFieldChange = (field: string, value: string) => {
+    setCustomFields(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleCustomSubmit = () => {
+    if (!canSubmitCustom) return
+
+    if (type === 'important') {
+      props.onCreateCustomOption({
+        keyword: customFields.keyword.trim(),
+        desc: customFields.desc.trim(),
+      })
+    } else if (type === 'skilled') {
+      props.onCreateCustomOption({
+        talent: customFields.talent.trim(),
+        strength: customFields.strength.trim(),
+        weakness: customFields.weakness.trim(),
+      })
+    } else {
+      props.onCreateCustomOption({
+        name: customFields.name.trim(),
+      })
+    }
+
+    setCustomFields({})
+    setShowCustomForm(false)
+  }
 
   return (
     <div className="container" style={{ paddingTop: 'var(--s-md)', paddingBottom: 100 }}>
-      {/* Header */}
       <div className="animate-fade-in-up" style={{ marginBottom: 'var(--s-md)' }}>
         <h2 style={{
           fontFamily: 'var(--f-display)',
@@ -49,18 +98,19 @@ export function ChecklistPage({
           fontSize: '1.3rem',
           marginBottom: 2,
         }}>
-          {stepLabel}
+          {stepCopy.title}
         </h2>
         <p style={{
-          fontSize: '0.8rem',
+          fontSize: '0.85rem',
           color: 'var(--c-text-secondary)',
-          lineHeight: 1.5,
+          lineHeight: 1.7,
         }}>
-          {stepDescription || DESCRIPTIONS[type]}
+          {stepCopy.description}
         </p>
       </div>
 
-      {/* Search — sticky */}
+      <GuidePanel language={language} type={type} />
+
       <div style={{
         position: 'sticky',
         top: 0,
@@ -70,63 +120,141 @@ export function ChecklistPage({
         paddingBottom: 'var(--s-sm)',
         marginBottom: 'var(--s-sm)',
       }}>
-        <input
-          type="text"
-          placeholder="搜索..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            padding: '8px var(--s-md)',
-            border: '1px solid var(--c-border)',
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          gap: 'var(--s-sm)',
+          alignItems: 'center',
+        }}>
+          <input
+            type="text"
+            placeholder={stepCopy.searchPlaceholder}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={searchInputStyle}
+            onFocus={e => e.currentTarget.style.borderColor = 'var(--c-accent)'}
+            onBlur={e => e.currentTarget.style.borderColor = 'var(--c-border)'}
+          />
+          <button
+            onClick={() => setShowCustomForm(prev => !prev)}
+            style={{
+              ...navBtnStyle('secondary'),
+              padding: '8px 12px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {stepCopy.customButton}
+          </button>
+        </div>
+
+        {showCustomForm && (
+          <div className="animate-fade-in-up" style={{
+            marginTop: 'var(--s-sm)',
+            padding: 'var(--s-md)',
             borderRadius: 'var(--r-md)',
             background: 'var(--c-bg-elevated)',
-            fontFamily: 'var(--f-body)',
-            fontSize: '0.85rem',
-            color: 'var(--c-text)',
-            outline: 'none',
-            transition: 'border-color var(--t-fast)',
-            boxSizing: 'border-box',
-          }}
-          onFocus={e => e.currentTarget.style.borderColor = 'var(--c-accent)'}
-          onBlur={e => e.currentTarget.style.borderColor = 'var(--c-border)'}
-        />
+            border: '1px solid var(--c-border-light)',
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <div style={{ marginBottom: 'var(--s-sm)' }}>
+              <div style={{
+                fontFamily: 'var(--f-display)',
+                fontSize: '0.92rem',
+                color: 'var(--c-text)',
+              }}>
+                {stepCopy.customTitle}
+              </div>
+              <p style={{ fontSize: '0.78rem', marginTop: 2 }}>
+                {stepCopy.customDescription}
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gap: 'var(--s-sm)' }}>
+              {Object.entries(stepCopy.fields).map(([field, meta]) => (
+                <label key={field} style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--c-text-secondary)' }}>
+                    {meta.label}
+                  </span>
+                  {field === 'desc' || field === 'strength' || field === 'weakness' ? (
+                    <textarea
+                      value={customFields[field] ?? ''}
+                      onChange={e => handleCustomFieldChange(field, e.target.value)}
+                      placeholder={meta.placeholder}
+                      rows={3}
+                      style={{ ...searchInputStyle, resize: 'vertical', minHeight: 72 }}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={customFields[field] ?? ''}
+                      onChange={e => handleCustomFieldChange(field, e.target.value)}
+                      placeholder={meta.placeholder}
+                      style={searchInputStyle}
+                    />
+                  )}
+                </label>
+              ))}
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: 'var(--s-sm)',
+              marginTop: 'var(--s-md)',
+              flexWrap: 'wrap',
+            }}>
+              <button
+                onClick={handleCustomSubmit}
+                disabled={!canSubmitCustom}
+                style={{
+                  ...navBtnStyle('primary'),
+                  opacity: canSubmitCustom ? 1 : 0.45,
+                  cursor: canSubmitCustom ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {stepCopy.customSubmit}
+              </button>
+              <button
+                onClick={() => {
+                  setShowCustomForm(false)
+                  setCustomFields({})
+                }}
+                style={navBtnStyle('secondary')}
+              >
+                {stepCopy.customCancel}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Items */}
-      {isLiked ? (
+      {filtered.length === 0 ? (
+        <div style={emptyStateStyle}>
+          {stepCopy.emptySearch}
+        </div>
+      ) : isLiked ? (
         <LikedGrid
           items={filtered as LikedItem[]}
           selectedIds={selectedIds}
           onToggle={onToggle}
+          customBadge={stepCopy.customBadge}
         />
       ) : type === 'important' ? (
         <ImportantList
           items={filtered as ImportantItem[]}
           selectedIds={selectedIds}
           onToggle={onToggle}
+          customBadge={stepCopy.customBadge}
         />
       ) : (
         <SkilledList
           items={filtered as SkilledItem[]}
           selectedIds={selectedIds}
           onToggle={onToggle}
+          customBadge={stepCopy.customBadge}
         />
       )}
 
-      {/* Bottom bar */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'var(--c-bg-elevated)',
-        borderTop: '1px solid var(--c-border-light)',
-        padding: 'var(--s-md) var(--s-lg)',
-        animation: 'slideUp var(--t-normal) var(--ease-out)',
-        zIndex: 100,
-        boxShadow: '0 -4px 20px rgba(0,0,0,0.04)',
-      }}>
+      <div style={bottomBarStyle}>
         <div style={{
           maxWidth: 680,
           margin: '0 auto',
@@ -136,25 +264,17 @@ export function ChecklistPage({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s-md)' }}>
             {onPrev && (
-              <button
-                onClick={onPrev}
-                style={navBtnStyle('secondary')}
-              >
-                上一步
+              <button onClick={onPrev} style={navBtnStyle('secondary')}>
+                {copy.common.previous}
               </button>
             )}
-            <span style={{
-              fontSize: '0.85rem',
-              color: 'var(--c-text-secondary)',
-            }}>
-              已选 <strong style={{ color: 'var(--c-accent)' }}>{selectedIds.size}</strong> 项
+            <span style={{ fontSize: '0.85rem', color: 'var(--c-text-secondary)' }}>
+              {copy.common.selected}{' '}
+              <strong style={{ color: 'var(--c-accent)' }}>{selectedIds.size}</strong>
             </span>
           </div>
-          <button
-            onClick={onNext}
-            style={navBtnStyle('primary')}
-          >
-            下一步 →
+          <button onClick={onNext} style={navBtnStyle('primary')}>
+            {copy.common.next}
           </button>
         </div>
       </div>
@@ -162,10 +282,124 @@ export function ChecklistPage({
   )
 }
 
-/* ===== Sub-components ===== */
+function GuidePanel({ language, type }: { language: AppLanguage; type: ListType }) {
+  const copy = UI_TEXT[language].steps[type]
 
-function ImportantList({ items, selectedIds, onToggle }: {
-  items: ImportantItem[]; selectedIds: Set<number>; onToggle: (id: number) => void
+  return (
+    <div className="animate-fade-in-up stagger-1" style={{
+      marginBottom: 'var(--s-md)',
+      padding: 'var(--s-md) var(--s-lg)',
+      borderRadius: 'var(--r-lg)',
+      background: 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(243,240,235,0.88))',
+      border: '1px solid var(--c-border-light)',
+      boxShadow: 'var(--shadow-sm)',
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 'var(--s-md)',
+        flexWrap: 'wrap',
+        marginBottom: 'var(--s-sm)',
+      }}>
+        <div style={{
+          fontFamily: 'var(--f-display)',
+          fontSize: '0.98rem',
+          color: 'var(--c-text)',
+        }}>
+          {copy.guideTitle}
+        </div>
+        <span style={{
+          padding: '2px 10px',
+          borderRadius: 'var(--r-pill)',
+          background: 'var(--c-accent-soft)',
+          color: 'var(--c-accent-hover)',
+          fontSize: '0.72rem',
+          fontWeight: 600,
+        }}>
+          {copy.recommendedRange}
+        </span>
+      </div>
+
+      <p style={{ fontSize: '0.82rem', lineHeight: 1.8, marginBottom: 'var(--s-md)' }}>
+        {copy.guideIntro}
+      </p>
+
+      {copy.englishModeNote && language === 'en' && (
+        <div style={{
+          marginBottom: 'var(--s-md)',
+          padding: 'var(--s-sm) var(--s-md)',
+          borderRadius: 'var(--r-md)',
+          background: 'rgba(123, 158, 196, 0.10)',
+          border: '1px solid rgba(123, 158, 196, 0.18)',
+          fontSize: '0.76rem',
+          color: '#5C7692',
+          lineHeight: 1.7,
+        }}>
+          {copy.englishModeNote}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gap: 'var(--s-sm)', marginBottom: 'var(--s-md)' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--c-text)' }}>
+          {copy.chooseTitle}
+        </div>
+        <div style={{ display: 'grid', gap: 6 }}>
+          {copy.chooseTips.map(tip => (
+            <div key={tip} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ color: 'var(--c-accent)', fontSize: '0.8rem', marginTop: 2 }}>•</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--c-text-secondary)', lineHeight: 1.7 }}>
+                {tip}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: 'var(--s-sm)' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--c-text)' }}>
+          {copy.meaningTitle}
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 'var(--s-sm)',
+        }}>
+          {copy.meaningCards.map(card => (
+            <div key={card.label} style={{
+              padding: 'var(--s-sm) var(--s-md)',
+              borderRadius: 'var(--r-md)',
+              background: 'var(--c-bg-elevated)',
+              border: '1px solid var(--c-border-light)',
+            }}>
+              <div style={{
+                fontSize: '0.76rem',
+                fontWeight: 600,
+                color: 'var(--c-accent-hover)',
+                marginBottom: 4,
+              }}>
+                {card.label}
+              </div>
+              <div style={{
+                fontSize: '0.75rem',
+                color: 'var(--c-text-secondary)',
+                lineHeight: 1.6,
+              }}>
+                {card.description}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportantList({ items, selectedIds, onToggle, customBadge }: {
+  items: ImportantItem[]
+  selectedIds: Set<number>
+  onToggle: (id: number) => void
+  customBadge: string
 }) {
   return (
     <div style={{
@@ -175,45 +409,40 @@ function ImportantList({ items, selectedIds, onToggle }: {
     }}>
       {items.map((item, index) => {
         const selected = selectedIds.has(item.id)
+        const custom = isCustomOptionId(item.id)
         return (
           <button
             key={item.id}
             onClick={() => onToggle(item.id)}
             className="animate-fade-in-up"
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 8,
-              padding: '10px 12px',
-              borderRadius: 'var(--r-md)',
-              border: selected
-                ? '1.5px solid var(--c-accent)'
-                : '1.5px solid var(--c-border-light)',
-              background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
-              cursor: 'pointer',
-              transition: 'all var(--t-fast) var(--ease-out)',
-              textAlign: 'left',
-              animationDelay: `${Math.min(index * 15, 300)}ms`,
-            }}
+            style={listCardStyle(selected, index)}
           >
             <div style={{ ...checkboxStyle(selected), marginTop: 2 }}>
               {selected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontFamily: 'var(--f-display)',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                color: selected ? 'var(--c-accent)' : 'var(--c-text)',
-                transition: 'color var(--t-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
               }}>
-                {item.keyword}
+                <div style={{
+                  fontFamily: 'var(--f-display)',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  color: selected ? 'var(--c-accent)' : 'var(--c-text)',
+                  transition: 'color var(--t-fast)',
+                }}>
+                  {item.keyword}
+                </div>
+                {custom && <CustomBadge label={customBadge} />}
               </div>
               <div style={{
                 fontSize: '0.72rem',
                 color: 'var(--c-text-tertiary)',
                 marginTop: 1,
-                lineHeight: 1.4,
+                lineHeight: 1.5,
               }}>
                 {item.desc}
               </div>
@@ -225,69 +454,51 @@ function ImportantList({ items, selectedIds, onToggle }: {
   )
 }
 
-function SkilledList({ items, selectedIds, onToggle }: {
-  items: SkilledItem[]; selectedIds: Set<number>; onToggle: (id: number) => void
+function SkilledList({ items, selectedIds, onToggle, customBadge }: {
+  items: SkilledItem[]
+  selectedIds: Set<number>
+  onToggle: (id: number) => void
+  customBadge: string
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {items.map((item, index) => {
         const selected = selectedIds.has(item.id)
+        const custom = isCustomOptionId(item.id)
         return (
           <button
             key={item.id}
             onClick={() => onToggle(item.id)}
             className="animate-fade-in-up"
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-              padding: '10px 14px',
-              borderRadius: 'var(--r-md)',
-              border: selected
-                ? '1.5px solid var(--c-accent)'
-                : '1.5px solid var(--c-border-light)',
-              background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
-              cursor: 'pointer',
-              transition: 'all var(--t-fast) var(--ease-out)',
-              textAlign: 'left',
-              animationDelay: `${Math.min(index * 15, 300)}ms`,
-            }}
+            style={listCardStyle(selected, index)}
           >
             <div style={{ ...checkboxStyle(selected), marginTop: 3, flexShrink: 0 }}>
               {selected && <span style={{ fontSize: '0.65rem' }}>✓</span>}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {/* 才能 — 标题 */}
               <div style={{
-                fontFamily: 'var(--f-display)',
-                fontWeight: 600,
-                fontSize: '0.9rem',
-                color: selected ? 'var(--c-accent)' : 'var(--c-text)',
-                transition: 'color var(--t-fast)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap',
                 marginBottom: 4,
               }}>
-                {item.talent}
+                <div style={{
+                  fontFamily: 'var(--f-display)',
+                  fontWeight: 600,
+                  fontSize: '0.9rem',
+                  color: selected ? 'var(--c-accent)' : 'var(--c-text)',
+                  transition: 'color var(--t-fast)',
+                }}>
+                  {item.talent}
+                </div>
+                {custom && <CustomBadge label={customBadge} />}
               </div>
-              {/* 长处 */}
-              <div style={{
-                fontSize: '0.75rem',
-                color: '#5a8a5a',
-                lineHeight: 1.4,
-                display: 'flex',
-                gap: 4,
-              }}>
+              <div style={strengthTextStyle}>
                 <span style={{ flexShrink: 0, opacity: 0.7 }}>↑</span>
                 <span>{item.strength}</span>
               </div>
-              {/* 短处 */}
-              <div style={{
-                fontSize: '0.75rem',
-                color: '#9a6a3a',
-                lineHeight: 1.4,
-                marginTop: 2,
-                display: 'flex',
-                gap: 4,
-              }}>
+              <div style={weaknessTextStyle}>
                 <span style={{ flexShrink: 0, opacity: 0.7 }}>↓</span>
                 <span>{item.weakness}</span>
               </div>
@@ -299,8 +510,11 @@ function SkilledList({ items, selectedIds, onToggle }: {
   )
 }
 
-function LikedGrid({ items, selectedIds, onToggle }: {
-  items: LikedItem[]; selectedIds: Set<number>; onToggle: (id: number) => void
+function LikedGrid({ items, selectedIds, onToggle, customBadge }: {
+  items: LikedItem[]
+  selectedIds: Set<number>
+  onToggle: (id: number) => void
+  customBadge: string
 }) {
   return (
     <div style={{
@@ -310,6 +524,7 @@ function LikedGrid({ items, selectedIds, onToggle }: {
     }}>
       {items.map((item, index) => {
         const selected = selectedIds.has(item.id)
+        const custom = isCustomOptionId(item.id)
         return (
           <button
             key={item.id}
@@ -329,7 +544,10 @@ function LikedGrid({ items, selectedIds, onToggle }: {
               cursor: 'pointer',
               transition: 'all var(--t-fast) var(--ease-out)',
               animationDelay: `${Math.min(index * 15, 400)}ms`,
-              whiteSpace: 'nowrap',
+              whiteSpace: 'normal',
+              lineHeight: 1.45,
+              textAlign: 'left',
+              maxWidth: '100%',
             }}
             onMouseEnter={e => {
               if (!selected) {
@@ -344,7 +562,16 @@ function LikedGrid({ items, selectedIds, onToggle }: {
               }
             }}
           >
-            {item.name}
+            <span>{item.name}</span>
+            {custom && (
+              <span style={{
+                marginLeft: 6,
+                fontSize: '0.72rem',
+                opacity: 0.72,
+              }}>
+                · {customBadge}
+              </span>
+            )}
           </button>
         )
       })}
@@ -352,7 +579,99 @@ function LikedGrid({ items, selectedIds, onToggle }: {
   )
 }
 
-/* ===== Style helpers ===== */
+function CustomBadge({ label }: { label: string }) {
+  return (
+    <span style={{
+      padding: '1px 7px',
+      borderRadius: 'var(--r-pill)',
+      background: 'rgba(123, 158, 196, 0.12)',
+      color: '#6A89AB',
+      fontSize: '0.66rem',
+      fontWeight: 600,
+      letterSpacing: '0.02em',
+    }}>
+      {label}
+    </span>
+  )
+}
+
+function getRequiredFields(type: ListType): string[] {
+  if (type === 'important') return ['keyword', 'desc']
+  if (type === 'skilled') return ['talent', 'strength', 'weakness']
+  return ['name']
+}
+
+function listCardStyle(selected: boolean, index: number): CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: '10px 12px',
+    borderRadius: 'var(--r-md)',
+    border: selected
+      ? '1.5px solid var(--c-accent)'
+      : '1.5px solid var(--c-border-light)',
+    background: selected ? 'var(--c-accent-soft)' : 'var(--c-bg-elevated)',
+    cursor: 'pointer',
+    transition: 'all var(--t-fast) var(--ease-out)',
+    textAlign: 'left',
+    animationDelay: `${Math.min(index * 15, 300)}ms`,
+  }
+}
+
+const strengthTextStyle: CSSProperties = {
+  fontSize: '0.75rem',
+  color: '#5a8a5a',
+  lineHeight: 1.45,
+  display: 'flex',
+  gap: 4,
+}
+
+const weaknessTextStyle: CSSProperties = {
+  fontSize: '0.75rem',
+  color: '#9a6a3a',
+  lineHeight: 1.45,
+  marginTop: 2,
+  display: 'flex',
+  gap: 4,
+}
+
+const searchInputStyle: CSSProperties = {
+  width: '100%',
+  padding: '8px var(--s-md)',
+  border: '1px solid var(--c-border)',
+  borderRadius: 'var(--r-md)',
+  background: 'var(--c-bg-elevated)',
+  fontFamily: 'var(--f-body)',
+  fontSize: '0.85rem',
+  color: 'var(--c-text)',
+  outline: 'none',
+  transition: 'border-color var(--t-fast)',
+  boxSizing: 'border-box',
+}
+
+const emptyStateStyle: CSSProperties = {
+  padding: 'var(--s-lg)',
+  borderRadius: 'var(--r-md)',
+  background: 'var(--c-bg-elevated)',
+  border: '1px dashed var(--c-border)',
+  color: 'var(--c-text-secondary)',
+  fontSize: '0.82rem',
+  lineHeight: 1.7,
+}
+
+const bottomBarStyle: CSSProperties = {
+  position: 'fixed',
+  bottom: 0,
+  left: 0,
+  right: 0,
+  background: 'var(--c-bg-elevated)',
+  borderTop: '1px solid var(--c-border-light)',
+  padding: 'var(--s-md) var(--s-lg)',
+  animation: 'slideUp var(--t-normal) var(--ease-out)',
+  zIndex: 100,
+  boxShadow: '0 -4px 20px rgba(0,0,0,0.04)',
+}
 
 function checkboxStyle(checked: boolean): CSSProperties {
   return {
@@ -386,6 +705,7 @@ function navBtnStyle(variant: 'primary' | 'secondary'): CSSProperties {
       cursor: 'pointer',
     }
   }
+
   return {
     padding: 'var(--s-sm) var(--s-md)',
     background: 'transparent',
@@ -398,4 +718,3 @@ function navBtnStyle(variant: 'primary' | 'secondary'): CSSProperties {
     transition: 'all var(--t-fast)',
   }
 }
-

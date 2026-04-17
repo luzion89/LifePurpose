@@ -1,18 +1,18 @@
 import { type CSSProperties } from 'react'
+import type { AppLanguage } from '../i18n'
+import { UI_TEXT } from '../i18n'
 
 interface StepIndicatorProps {
   currentStep: number  // 0, 1, 2, 3 (3 = result)
   onStepClick: (step: number) => void
   counts: [number, number, number]  // selected counts for each list
+  language: AppLanguage
 }
 
-const STEPS = [
-  { label: '重要的事', sub: '价值观' },
-  { label: '擅长的事', sub: '才能' },
-  { label: '喜欢的事', sub: '热情' },
-]
+export function StepIndicator({ currentStep, onStepClick, counts, language }: StepIndicatorProps) {
+  const copy = UI_TEXT[language]
+  const steps = [copy.steps.important, copy.steps.skilled, copy.steps.liked]
 
-export function StepIndicator({ currentStep, onStepClick, counts }: StepIndicatorProps) {
   return (
     <div className="animate-fade-in-up stagger-1" style={{
       display: 'flex',
@@ -21,7 +21,7 @@ export function StepIndicator({ currentStep, onStepClick, counts }: StepIndicato
       gap: 0,
       padding: 'var(--s-md) 0 var(--s-sm)',
     }}>
-      {STEPS.map((step, i) => {
+      {steps.map((step, i) => {
         const isActive = currentStep === i
         const isDone = currentStep > i || currentStep === 3
         const isClickable = true
@@ -78,24 +78,24 @@ export function StepIndicator({ currentStep, onStepClick, counts }: StepIndicato
               onMouseLeave={e => {
                 e.currentTarget.style.background = 'transparent'
               }}
-              aria-label={`步骤 ${i + 1}: ${step.label}`}
+              aria-label={`Step ${i + 1}: ${step.navLabel}`}
               aria-current={isActive ? 'step' : undefined}
             >
               <div style={dotStyle}>
                 {isDone && !isActive ? '✓' : i + 1}
               </div>
-              <span style={labelStyle}>{step.label}</span>
+              <span style={labelStyle}>{step.navLabel}</span>
               {counts[i] > 0 && (
                 <span style={{
                   fontSize: '0.65rem',
                   color: 'var(--c-accent)',
                   fontFamily: 'var(--f-body)',
                 }}>
-                  已选 {counts[i]}
+                  {language === 'zh' ? `已选 ${counts[i]}` : `${counts[i]} selected`}
                 </span>
               )}
             </button>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div style={{
                 width: 32,
                 height: 1,
