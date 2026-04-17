@@ -5,6 +5,9 @@ import { useAIChat } from '../hooks/useAIChat'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { PROVIDER_LABELS, type AIProvider } from '../services/ai'
 
+const INITIAL_ANALYSIS_REQUEST =
+  '请先根据我的选择提炼稳定信号，再提出 3 个方向假设。不要直接给唯一的人生答案。每个方向都要写支持证据、可能误判点、置信度和 7 天验证实验。如果信息不足，请明确指出最关键的信息缺口。'
+
 interface ResultPageProps {
   importantIds: Set<number>
   skilledIds: Set<number>
@@ -75,12 +78,36 @@ export function ResultPage({ importantIds, skilledIds, likedIds, onBack }: Resul
           你的自我探索结果
         </h2>
         <p style={{ fontSize: '0.85rem', color: 'var(--c-text-secondary)' }}>
-          共选择了 {totalSelected} 个条目，已生成个性化提示词
+          共选择了 {totalSelected} 个条目，已生成一版更偏“研究与验证”的提示词
+        </p>
+      </div>
+
+      <div className="animate-fade-in-up stagger-1" style={{
+        marginBottom: 'var(--s-lg)',
+        padding: 'var(--s-md) var(--s-lg)',
+        borderRadius: 'var(--r-md)',
+        background: 'linear-gradient(135deg, rgba(192,153,75,0.12), rgba(123,158,196,0.12))',
+        border: '1px solid var(--c-border-light)',
+      }}>
+        <div style={{
+          fontFamily: 'var(--f-display)',
+          fontSize: '0.9rem',
+          color: 'var(--c-text)',
+          marginBottom: 'var(--s-xs)',
+        }}>
+          这版会先做方向假设，不直接下唯一结论
+        </div>
+        <p style={{
+          fontSize: '0.8rem',
+          lineHeight: 1.7,
+          color: 'var(--c-text-secondary)',
+        }}>
+          AI 会先整理你勾选里的稳定信号，再给出 3 个可验证的方向假设，并为每个方向附上可能误判点与 7 天实验。
         </p>
       </div>
 
       {/* Three columns summary */}
-      <div className="animate-fade-in-up stagger-1" style={{
+      <div className="animate-fade-in-up stagger-2" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         gap: 'var(--s-md)',
@@ -92,7 +119,7 @@ export function ResultPage({ importantIds, skilledIds, likedIds, onBack }: Resul
       </div>
 
       {/* Prompt preview */}
-      <div className="animate-fade-in-up stagger-2" style={{ marginBottom: 'var(--s-lg)' }}>
+      <div className="animate-fade-in-up stagger-3" style={{ marginBottom: 'var(--s-lg)' }}>
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -137,14 +164,14 @@ export function ResultPage({ importantIds, skilledIds, likedIds, onBack }: Resul
       </div>
 
       {/* Action buttons */}
-      <div className="animate-fade-in-up stagger-3" style={{
+      <div className="animate-fade-in-up stagger-4" style={{
         display: 'flex',
         gap: 'var(--s-md)',
         flexWrap: 'wrap',
         marginBottom: 'var(--s-xl)',
       }}>
         <button onClick={() => setShowAI(true)} style={primaryBtnStyle}>
-          在 App 内问 AI ✦
+          生成方向假设 ✦
         </button>
         <button onClick={handleCopy} style={secondaryBtnStyle}>
           {copied ? '✓ 已复制' : '复制至剪贴板'}
@@ -232,7 +259,7 @@ function AIChatOverlay({ prompt, onClose }: { prompt: string; onClose: () => voi
   useEffect(() => {
     if (apiKey && !hasSentRef.current && messages.length === 0) {
       hasSentRef.current = true
-      sendMessage('请根据以上我的选择，按照步骤帮我深度分析，找到我真正想做的事。')
+      sendMessage(INITIAL_ANALYSIS_REQUEST)
     }
   }, [apiKey, messages.length, prompt, sendMessage])
 
